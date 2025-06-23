@@ -22,7 +22,6 @@ export const useVirtualizedMasonry = ({
   items,
   itemWidth,
   containerWidth,
-  containerHeight,
   itemGap,
 }: UseVirtualizedMasonryProps) => {
   const [columns, setColumns] = useState<number>(0);
@@ -56,7 +55,7 @@ export const useVirtualizedMasonry = ({
 
       let renderedCount = 0;
 
-      items.forEach((item, idx) => {
+      items.forEach((item) => {
         // Find the shortest column
         const shortestColumnIndex = newColumnHeights.indexOf(
           Math.min(...newColumnHeights)
