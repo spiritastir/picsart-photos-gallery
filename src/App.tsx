@@ -7,6 +7,7 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
 
   html, body {
+    width: 100%;
     height: 100%;
     margin: 0;
     padding: 0;
@@ -16,6 +17,11 @@ const GlobalStyle = createGlobalStyle`
     color: #222;
     font-size: 16px;
     line-height: 1.5;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
   }
 
   a {

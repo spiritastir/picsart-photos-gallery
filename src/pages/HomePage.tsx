@@ -1,17 +1,18 @@
 import { useNavigate } from "react-router-dom";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import type { Photo } from "../types/pexels";
 import { usePhotos } from "../hooks/usePhotos";
+import { useSearch } from "../hooks/useSearch";
+import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { MasonryGrid } from "../components/MasonryGrid";
-import { useState } from "react";
+import { API_CONFIG } from "../constants";
 
 const PageContainer = styled.div`
+  width: 100%;
   min-height: 100vh;
   background-color: #fafafa;
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
 `;
 
 const Header = styled.header`
@@ -64,10 +65,82 @@ const SearchInput = styled.input`
   }
 `;
 
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  color: #666;
+  font-size: 0.9rem;
+`;
+
+const ErrorMessage = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  color: #e74c3c;
+  font-size: 0.9rem;
+`;
+
+const LoadMoreButtonWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 48px;
+`;
+
+const spin = keyframes`
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+`;
+
+const Spinner = styled.div`
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #05a081;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  animation: ${spin} 1s linear infinite;
+  display: inline-block;
+  margin-left: 10px;
+`;
+
+const LoadMoreButton = styled.button`
+  margin: 32px auto 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 32px;
+  font-size: 1rem;
+  border-radius: 8px;
+  background: #05a081;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+  &:disabled {
+    background: #b2dfd6;
+    cursor: not-allowed;
+  }
+`;
+
 export const HomePage = () => {
-  const [search, setSearch] = useState("");
-  const { photos, loading, error } = usePhotos(search);
+  const { search, debouncedSearch, handleSearchChange } = useSearch({
+    debounceMs: API_CONFIG.SEARCH_DEBOUNCE_MS,
+  });
+
+  const { photos, loading, loadingMore, error, hasMore, loadMore } =
+    usePhotos(debouncedSearch);
   const navigate = useNavigate();
+
+  useInfiniteScroll({
+    onLoadMore: loadMore,
+    hasMore,
+    loading: loadingMore,
+    threshold: API_CONFIG.INFINITE_SCROLL_THRESHOLD,
+  });
 
   const handlePhotoClick = (photo: Photo) => {
     navigate(`/photo/${photo.id}`, { state: { photo } });
@@ -82,16 +155,37 @@ export const HomePage = () => {
             type="text"
             placeholder="Search photos..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             aria-label="Search photos"
           />
         </SearchBarWrapper>
       </Header>
-      {loading && <div>Loading...</div>}
-      {error && <div>{error}</div>}
-      {!loading && !error && (
+
+      {loading && <LoadingSpinner>Loading photos...</LoadingSpinner>}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
+      {!loading && !error && photos.length > 0 && (
         <MasonryGrid photos={photos} onPhotoClick={handlePhotoClick} />
       )}
+
+      {!loading && !error && photos.length === 0 && (
+        <LoadingSpinner>No photos found</LoadingSpinner>
+      )}
+
+      <LoadMoreButtonWrapper>
+        {!loading && hasMore && (
+          <LoadMoreButton onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? (
+              <>
+                Loading
+                <Spinner />
+              </>
+            ) : (
+              "Load More"
+            )}
+          </LoadMoreButton>
+        )}
+      </LoadMoreButtonWrapper>
     </PageContainer>
   );
 };

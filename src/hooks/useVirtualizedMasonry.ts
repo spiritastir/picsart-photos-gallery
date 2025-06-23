@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { UI_CONFIG } from "../constants";
 import type { Photo } from "../types/pexels";
 
 interface UseVirtualizedMasonryProps {
@@ -27,7 +28,9 @@ export const useVirtualizedMasonry = ({
   const [columns, setColumns] = useState<number>(0);
   const [columnHeights, setColumnHeights] = useState<number[]>([]);
   const [visibleItems, setVisibleItems] = useState<MasonryItem[]>([]);
-  const scrollTop = useRef(0);
+
+  // Track previous visible items for debugging
+  const prevVisibleItemsRef = useRef<MasonryItem[]>([]);
 
   // Calculate number of columns based on container width
   useEffect(() => {
@@ -40,61 +43,85 @@ export const useVirtualizedMasonry = ({
   }, [containerWidth, itemWidth, itemGap]);
 
   // Calculate item positions and heights
-  const calculateLayout = useCallback(() => {
-    if (columns === 0) return;
+  const calculateLayout = useCallback(
+    (scrollY: number, winHeight: number) => {
+      if (columns === 0) return;
 
-    const newColumnHeights = new Array(columns).fill(0);
-    const newVisibleItems: MasonryItem[] = [];
+      const newColumnHeights = new Array(columns).fill(0);
+      const newVisibleItems: MasonryItem[] = [];
 
-    items.forEach((item) => {
-      // Find the shortest column
-      const shortestColumnIndex = newColumnHeights.indexOf(
-        Math.min(...newColumnHeights)
-      );
+      // Calculate viewport bounds with overscan
+      const viewportTop = scrollY - UI_CONFIG.OVERSCAN_PX;
+      const viewportBottom = scrollY + winHeight + UI_CONFIG.OVERSCAN_PX;
 
-      // Calculate item height maintaining aspect ratio
-      const aspectRatio = item.width / item.height;
-      const itemHeight = itemWidth / aspectRatio;
+      let renderedCount = 0;
 
-      // Calculate item position
-      const top = newColumnHeights[shortestColumnIndex];
-      const left = shortestColumnIndex * (itemWidth + itemGap);
+      items.forEach((item, idx) => {
+        // Find the shortest column
+        const shortestColumnIndex = newColumnHeights.indexOf(
+          Math.min(...newColumnHeights)
+        );
 
-      // Update column height
-      newColumnHeights[shortestColumnIndex] += itemHeight + itemGap;
+        // Calculate item height maintaining aspect ratio
+        const aspectRatio = item.width / item.height;
+        const itemHeight = itemWidth / aspectRatio;
 
-      // Only add items that are visible in the viewport
-      if (
-        top + itemHeight >= scrollTop.current &&
-        top <= scrollTop.current + containerHeight
-      ) {
-        newVisibleItems.push({
-          item,
-          top,
-          left,
-          width: itemWidth,
-          height: itemHeight,
-        });
+        // Calculate item position
+        const top = newColumnHeights[shortestColumnIndex];
+        const left = shortestColumnIndex * (itemWidth + itemGap);
+        const bottom = top + itemHeight;
+
+        // Update column height
+        newColumnHeights[shortestColumnIndex] += itemHeight + itemGap;
+
+        // Only add items that are within the viewport plus overscan buffer
+        // Improved visibility check: item must intersect with viewport
+        if (bottom >= viewportTop && top <= viewportBottom) {
+          newVisibleItems.push({
+            item,
+            top,
+            left,
+            width: itemWidth,
+            height: itemHeight,
+          });
+          renderedCount++;
+        }
+      });
+
+      // Check if visible items actually changed
+      const itemsChanged =
+        newVisibleItems.length !== prevVisibleItemsRef.current.length ||
+        newVisibleItems.some(
+          (item, index) =>
+            prevVisibleItemsRef.current[index]?.item.id !== item.item.id
+        );
+
+      if (itemsChanged) {
+        console.log(
+          `[Virtualization] Calculation triggered - Rendering ${newVisibleItems.length} items (scrollY: ${scrollY})`
+        );
+        prevVisibleItemsRef.current = newVisibleItems;
       }
-    });
 
-    setColumnHeights(newColumnHeights);
-    setVisibleItems(newVisibleItems);
-  }, [items, columns, itemWidth, itemGap, containerHeight]);
+      setColumnHeights(newColumnHeights);
+      setVisibleItems(newVisibleItems);
+    },
+    [items, columns, itemWidth, itemGap]
+  );
 
-  // Handle scroll events
+  // Handle scroll events (window-based)
   const handleScroll = useCallback(
-    (scrollPosition: number) => {
-      scrollTop.current = scrollPosition;
-      calculateLayout();
+    (scrollY: number, winHeight: number) => {
+      calculateLayout(scrollY, winHeight);
     },
     [calculateLayout]
   );
 
   // Recalculate layout when dependencies change
   useEffect(() => {
-    calculateLayout();
-  }, [calculateLayout]);
+    handleScroll(window.scrollY, window.innerHeight);
+    // eslint-disable-next-line
+  }, [calculateLayout, items]);
 
   return {
     visibleItems,

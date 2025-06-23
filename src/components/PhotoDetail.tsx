@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { extractTags } from "../utils/tags";
 import type { Photo } from "../types/pexels";
 
 interface PhotoDetailProps {
@@ -115,18 +116,7 @@ const Tag = styled.span`
 `;
 
 export const PhotoDetail: React.FC<PhotoDetailProps> = ({ photo, onBack }) => {
-  // Extract tags from alt property (split by comma, or by space if no commas)
-  const tags = photo.alt
-    ? photo.alt.includes(",")
-      ? photo.alt
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : photo.alt
-          .split(" ")
-          .map((t) => t.trim())
-          .filter(Boolean)
-    : [];
+  const tags = extractTags(photo.alt);
 
   return (
     <DetailContainer>
